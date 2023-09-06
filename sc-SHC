@@ -1,12 +1,6 @@
+
 ``` r
-  setwd("./sc-SHC")
-```
-Some basic Git commands are:
-```
-git status
-git add
-git commit
-```
+setwd("./sc-SHC")
 # Read files
 files <- list.files()
 files <- files[str_detect(files,pattern = "h5seurat")]
@@ -71,5 +65,4 @@ sce$new_cluster <- clusters[[1]]
 pdf("dim_split.pdf",height = 6,width = 20)
 DimPlot(sce,split.by = "GSE",group.by = "new_cluster",label=T)
 dev.off()
-
 ```
