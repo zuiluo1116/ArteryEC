@@ -1,11 +1,17 @@
-``` R
-setwd("./sc-SHC")
+``` r
+  setwd("./sc-SHC")
+```
+Some basic Git commands are:
+```
+git status
+git add
+git commit
+```
 # Read files
 files <- list.files()
 files <- files[str_detect(files,pattern = "h5seurat")]
 # [1] "GSE155468_EC.h5seurat"             "GSE155514_EC.h5seurat"             "GSE159677_EC.h5seurat"            
 # [4] "GSE213740_EC.h5seurat"             "GSE216860_EC.h5seurat"             
-
 GSEs <- c("GSE155468","GSE155514","GSE159677","GSE213740","GSE216860")
 sc_list <- list()
 for (i in i:length(sc_list)) {
