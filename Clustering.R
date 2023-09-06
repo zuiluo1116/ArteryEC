@@ -1,0 +1,169 @@
+library(sphereplot)
+library(monocle3)
+library(densitycut)
+library(robustbase)
+library(RColorBrewer)
+# library(SCEnt)
+# library(ggridges)
+# library(Nebulosa)
+
+
+###
+# 3D可视化 定义功能 基于rgl
+setwd("..")
+PlotSphere = function(x, cluster, col, density=FALSE, legend=FALSE) {
+  if (missing(col)) {
+    col = distinct.col
+  }
+  if (density == FALSE) {
+    col.point = densitycut::AssignLabelColor(col, cluster, 
+                                             uniq.label = sort(unique(cluster)))
+  } else {
+    colours = colorRampPalette((brewer.pal(7, "YlOrRd")))(10)
+    FUN = colorRamp(colours)
+    cluster = (cluster - min(cluster)) / diff(range(cluster))
+    col.point = rgb(FUN(cluster), maxColorValue=256)
+  }
+  plot3d(x[, 1:3], col = col.point, 
+         xlim=c(-1, 1), ylim=c(-1, 1), zlim=c(-1, 1), 
+         box=FALSE, axes=FALSE, xlab='', ylab='', zlab='')
+  
+  arrow3d(c(0, -1.35, 0), c(0, 1.35, 0), 
+          col = 'gray', s=0.04, type='extrusion', lit=FALSE)
+  
+  spheres3d(0, 0, 0, lit=FALSE, color='#dbd7d2', 
+            alpha=0.6, radius=0.99)
+  spheres3d(0, 0, 0, radius=0.9999, lit=FALSE, color='gray', 
+            front='lines', alpha=0.6)
+  
+  if (density == FALSE) {
+    id = !duplicated(cluster)
+    col.leg = AssignLabelColor(col, cluster)[id]
+    leg = cluster[id]
+    names(col.leg) = leg
+    
+    if (legend == TRUE) {
+      legend3d("topright", legend = leg, 
+               pch = 16, col = col.leg, cex=1, inset=c(0.02)) 
+    }
+    
+    cluster.srt = sort(unique(cluster))
+    k.centers = sapply(cluster.srt, function(zz) {
+      cat(zz, '\t')
+      id = cluster == zz
+      center = colMedians(as.matrix(x[id, , drop=FALSE]))
+    })
+    
+    k.centers = t(k.centers)
+    
+    cluster.size = table(cluster)[as.character(cluster.srt)]
+    id = which(cluster.size > 0)
+    
+    if (length(id) > 0) {
+      k.centers = k.centers[id, , drop=FALSE]
+      cluster.srt = cluster.srt[id]
+    }
+    
+    k.centers = k.centers / sqrt(rowSums(k.centers^2)) * 1.15
+    text3d(cex=6,k.centers, texts=cluster.srt, col='black')
+  }
+}
+
+# read obj
+sce <- LoadH5Seurat("./obj/sce_afterSCT.h5seurat")
+x = read.delim('./scPhere/re_latent_vmf.tsv',sep=' ', header=FALSE)
+y <- car2sph(x) # 3D <- 2D
+
+
+# rownames
+rownames(x) <- sce@assays[["RNA"]]@data@Dimnames[[2]]
+rownames(y) <- sce@assays[["RNA"]]@data@Dimnames[[2]]
+y_trans <- y 
+y_trans[,1] <- ifelse(y[,1]<(-90),(y[,1]+270),(y[,1]-90)) # Align
+
+
+# Seurat create scphere embbeding 
+seu.embed <- Embeddings(sce,reduction = "umap")
+scphere.embed <- y_trans
+scphere.embed <- scphere.embed[rownames(seu.embed),1:2]
+colnames(scphere.embed) <- c("scPhere_1","scPhere_2")
+sce@reductions[["scphere"]] <- CreateDimReducObject(embeddings = scphere.embed[,1:2],
+                                                  global = T,key = "scPhere_")
+DimPlot(sce,reduction = "scphere",group.by = "new_cluster")
+
+# Create 3D monocle object
+data <- GetAssayData(sce,assay ='RNA',slot ='counts')
+cell_metadata <- sce@meta.data
+gene_annotation <- data.frame(gene_short_name =rownames(data))
+rownames(gene_annotation) <- rownames(data)
+cdsk_3d <- new_cell_data_set(data,cell_metadata = cell_metadata,gene_metadata = gene_annotation)
+
+# Monocle replace scphere embbeding 
+cdsk_3d = reduce_dimension(cdsk_3d, max_components = 3)
+cdsk_3d.embed <- cdsk_3d@int_colData$reducedDims$UMAP
+scphere_3d.embed <- x
+scphere_3d.embed <- scphere_3d.embed[rownames(cdsk_3d.embed),1:3] #排序
+
+colnames(scphere_3d.embed) <- colnames(cdsk_3d.embed)
+cdsk_3d@int_colData$reducedDims$UMAP <- scphere_3d.embed
+cdsk_3d <- learn_graph(cdsk_3d)
+plot_cells_3d(cdsk_3d,#color_cells_by = "new_cluster",
+              color_palette = scales::hue_pal()(10))
+# Clustering in 3D 
+cdsk_3d = cluster_cells(cdsk_3d,resolution=0.0002)
+
+# Pass to seurat
+cludf <- as.data.frame(cdsk_3d@clusters@listData[["UMAP"]][["clusters"]])
+seudf <- as.data.frame(sce$id)
+cludf <- cludf[rownames(seudf),]
+sce$monocle_clu <- cludf
+DimPlot(sce,group.by = "monocle_clu",reduction = "scphere")
+
+
+# Compare Monocle clustering and sc-SHC clustering
+DimPlot(sce,group.by = "monocle_clu",split.by = "GSE",reduction = "scphere")
+DimPlot(sce,group.by = "new_cluster",split.by = "GSE",reduction = "scphere")
+
+# Visulaization in 3D
+clus_num <- as.integer(sce$monocle_clu)
+PlotSphere(x, clus_num,scales::hue_pal()(10))
+
+
+# Viewpoint adjustment
+view_0 <- structure(c(1, 0, 0, 0,
+                          
+                      0, 1, 0, 0,
+                          
+                      0, 0, 1, 0,
+                          
+                      0, 0, 0, 1), .Dim = c(4L, 4L))
+
+rotation_y <- matrix(c(sqrt(2)/2, 0, sqrt(2)/2, 0,
+                       0, 1, 0, 0,
+                       -sqrt(2)/2, 0, sqrt(2)/2, 0,
+                       0, 0, 0, 1), nrow=4, byrow=TRUE)
+
+rotation_x <- matrix(c(1, 0, 0, 0,
+                       0, sqrt(2)/2, -sqrt(2)/2, 0,
+                       0, sqrt(2)/2, sqrt(2)/2, 0,
+                       0, 0, 0, 1), nrow=4, byrow=TRUE)
+
+rotation_z <- matrix(c(sqrt(2)/2, -sqrt(2)/2, 0, 0,
+                       sqrt(2)/2, sqrt(2)/2, 0, 0,
+                       0, 0, 1, 0,
+                       0, 0, 0, 1), nrow=4, byrow=TRUE)
+new_view <- view_start %*% rotation_x
+
+
+par3d(userMatrix = view_0)
+view1 <- view_0 %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z  %*% rotation_y
+par3d(userMatrix = view1)
+rgl.postscript('./Figures/3dplot.vp1.pdf', fmt = 'pdf')
+
+view2 <- view1 %*% rotation_y %*% rotation_y %*% rotation_y %*% rotation_y
+par3d(userMatrix = view2)
+rgl.postscript('./Figures/3dplot.vp2.pdf', fmt = 'pdf')
+
+# 3D visualization
+movie3d(spin3d(axis=c(0,1,0),rpm=7.2),duration=10,fps=25,movie = "3dNEWplot",dir = "./Figures/")
+
