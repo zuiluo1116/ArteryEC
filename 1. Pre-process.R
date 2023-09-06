@@ -8,7 +8,7 @@ library(COSG)
 library(plyr)
 library(httr)
 library(jsonlite)
-setwd("E:/works/INSC-revision")
+setwd("./INSC-revision")
 
 ## function 
 Topp.chr_list <- function(a)
