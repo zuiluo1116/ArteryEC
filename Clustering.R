@@ -3,8 +3,14 @@ library(monocle3)
 library(densitycut)
 library(robustbase)
 library(RColorBrewer)
+library(SCEnt)
+library(ggridges)
+# library(Nebulosa)
 
-# Function
+getwd()
+###
+# 3D可视化 定义功能 基于rgl
+setwd("..")
 PlotSphere = function(x, cluster, col, density=FALSE, legend=FALSE) {
   if (missing(col)) {
     col = distinct.col
@@ -63,13 +69,13 @@ PlotSphere = function(x, cluster, col, density=FALSE, legend=FALSE) {
   }
 }
 
-# read object
+# read obj
 sce <- LoadH5Seurat("./obj/sce_afterSCT.h5seurat")
 x = read.delim('./scPhere/re_latent_vmf.tsv',sep=' ', header=FALSE)
 y <- car2sph(x) # 3D <- 2D
 
 
-# Pairing rownames
+# rownames
 rownames(x) <- sce@assays[["RNA"]]@data@Dimnames[[2]]
 rownames(y) <- sce@assays[["RNA"]]@data@Dimnames[[2]]
 y_trans <- y 
@@ -128,21 +134,23 @@ view_0 <- structure(c(1, 0, 0, 0,
                       0, 1, 0, 0,
                       0, 0, 1, 0,
                       0, 0, 0, 1), .Dim = c(4L, 4L))
+
 rotation_y <- matrix(c(sqrt(2)/2, 0, sqrt(2)/2, 0,
                        0, 1, 0, 0,
                        -sqrt(2)/2, 0, sqrt(2)/2, 0,
                        0, 0, 0, 1), nrow=4, byrow=TRUE)
+
 rotation_x <- matrix(c(1, 0, 0, 0,
                        0, sqrt(2)/2, -sqrt(2)/2, 0,
                        0, sqrt(2)/2, sqrt(2)/2, 0,
                        0, 0, 0, 1), nrow=4, byrow=TRUE)
+
 rotation_z <- matrix(c(sqrt(2)/2, -sqrt(2)/2, 0, 0,
                        sqrt(2)/2, sqrt(2)/2, 0, 0,
                        0, 0, 1, 0,
                        0, 0, 0, 1), nrow=4, byrow=TRUE)
 
 par3d(userMatrix = view_0)
-
 view1 <- view_0 %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z  %*% rotation_y
 par3d(userMatrix = view1)
 rgl.postscript('./Figures/3dplot.vp1.pdf', fmt = 'pdf')
@@ -154,3 +162,65 @@ rgl.postscript('./Figures/3dplot.vp2.pdf', fmt = 'pdf')
 # 3D visualization
 movie3d(spin3d(axis=c(0,1,0),rpm=7.2),duration=10,fps=25,movie = "3dNEWplot",dir = "./Figures/")
 
+
+# Entropy with sampling
+
+Idents(sce) <- "GSE"
+
+# Monocle entropy
+entropy <- numeric()
+sample_entropy <- data.frame()
+
+for (j in 1:200) {
+  set.seed(1116+j)
+  sctmp <- sce[,sample(1:26059, 2000)]
+  cellnum1 <- as.matrix(t(cbind(table(sctmp$GSE,sctmp$new_cluster))))
+  for (i in 1:nrow(cellnum1)){ 
+    entropy[i]=gene_hom(as.numeric(cellnum1[i,]))
+  }
+  sample_entropy <- rbind(sample_entropy,entropy)
+}
+
+names(sample_entropy) <- levels(as.factor(sce$monocle_clu))
+entropy_tmp <- as.matrix(sample_entropy)
+entropy_tmp <- (entropy_tmp-min(entropy_tmp))/(max(entropy_tmp)-min(entropy_tmp))
+sample_test <- melt(entropy_tmp)
+table(sample_test$Var2)
+sample_test$Var2 <- as.factor(sample_test$Var2)
+ent_monocle <- sample_test
+
+monocle_heter <- ggplot(ent_monocle, aes(x = value , y = Var2 , fill = Var2)) +
+  geom_density_ridges() +
+  theme_ridges() +
+  theme(legend.position = "none")
+monocle_heter
+
+ggsave(group_heter,filename = "Figures/Fig.1C.pdf",height = 6,width = 2)
+
+# sc-SHC entropy
+entropy <- numeric()
+sample_entropy <- data.frame()
+
+for (j in 1:200) {
+  set.seed(1116+j)
+  sctmp <- sce[,sample(1:26059, 2000)]
+  cellnum1 <- as.matrix(t(cbind(table(sctmp$GSE,sctmp$new_cluster))))
+  for (i in 1:nrow(cellnum1)){ 
+    entropy[i]=gene_hom(as.numeric(cellnum1[i,]))
+  }
+  sample_entropy <- rbind(sample_entropy,entropy)
+}
+
+names(sample_entropy) <- levels(as.factor(sce$new_cluster))
+entropy_tmp <- as.matrix(sample_entropy)
+entropy_tmp <- (entropy_tmp-min(entropy_tmp))/(max(entropy_tmp)-min(entropy_tmp))
+sample_test <- melt(entropy_tmp)
+table(sample_test$Var2)
+sample_test$Var2 <- as.factor(sample_test$Var2)
+ent_SHC <- sample_test
+
+SHC_heter <- ggplot(ent_SHC, aes(x = value , y = Var2 , fill = Var2)) +
+  geom_density_ridges() +
+  theme_ridges() +
+  theme(legend.position = "none")
+SHC_heter
