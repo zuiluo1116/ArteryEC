@@ -464,26 +464,7 @@ SaveH5Seurat(GSE216860_EC,"../obj/GSE216860_EC",overwrite = T)
 # Nebulosa::plot_density(scRNA,c("pt.hla"))
 # df <- scRNA@meta.data
 # df$newtype <- df$RNA_snn_res.0.1
-# df$newtype <- mapvalues(df$newtype,
-#                         from = 0:16,
-#                         to = c("T"), # 0
-#                         c("Mye"), # 1 
-#                         c("SMC"), # 2 
-#                         c("T"), # 3 
-#                         c("Mye"), # 4 
-#                         c("T"), # 5 
-#                         c("NK"), # 6 
-#                         c("Fib"), # 7 
-#                         c("Mye"), # 8 
-#                         c("SMC"), # 9 
-#                         c(""), # 10
-#                         c("SMC"), # 11 
-#                         c(""), # 12 
-#                         c(""), # 13 
-#                         c(""), # 14 
-#                         c("Neu"), # 15 
-#                         c("")  # 16
-#                         )
+
 # df$newtype <- mapvalues(df$newtype,
 #                         from = 0:16,
 #                         to = c(""), # 0
