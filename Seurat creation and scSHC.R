@@ -1,0 +1,79 @@
+library(scSHC)
+library(Seurat)
+library(SeuratDisk)
+library(stringr)
+
+setwd("./sc-SHC")
+# Read files
+files <- list.files()
+files <- files[str_detect(files,pattern = "h5seurat")]
+# [1] "GSE155468_EC.h5seurat"             "GSE155514_EC.h5seurat"             "GSE159677_EC.h5seurat"            
+# [4] "GSE213740_EC.h5seurat"             "GSE216860_EC.h5seurat"             
+GSEs <- c("GSE155468","GSE155514","GSE159677","GSE213740","GSE216860")
+sc_list <- list()
+for (i in i:length(sc_list)) {
+  sc_list[[i]] <- LoadH5Seurat(files[i])
+}
+names(sc_list) <- GSEs
+# rm(list = setdiff(ls(),"sc_list"))
+
+# Select common features
+gene_list <- lapply(sc_list, function(x){
+  x <- x@assays[["RNA"]]@counts@Dimnames[[1]]
+})
+gene_sel <- gene_list[[1]]
+for (j in 2:length(gene_list)) {
+  gene_sel <- intersect(gene_sel,gene_list[[j]])
+}
+
+# Matrix slim down
+sc_sel_list <- lapply(sc_list, function(x){
+  x <- x[gene_sel,]
+  tmp <- x
+  DefaultAssay(tmp) <- "RNA"
+  tmp@assays$SCT <- NULL
+  x <- tmp
+})
+
+# Batch information 
+for (i in 1:length(sc_sel_list)) {
+  sc_sel_list[[i]]$GSE <- GSEs[i]
+  sc_sel_list[[i]]$id <- paste0(sc_sel_list[[i]]$GSE,"_",sc_sel_list[[i]]$orig.ident)
+}
+
+# Merge data
+sc_sel <- sc_sel_list[[1]]
+for (j in 2:length(gene_list)) {
+  sc_sel <- merge(sc_sel,sc_sel_list[[j]])
+}
+# levels(factor(sc_sel$id)) # batch number
+
+# Prepare Data
+data <- sc_sel@assays[["RNA"]]@counts
+batch_ident <- sc_sel$id
+
+# Run sc-SHC
+clusters <- scSHC(data,batch = batch_ident,parallel = T)
+
+# Seurat object creation
+sce <- sc_sel %>% 
+  SCTransform() %>% 
+  RunPCA(npcs=50, verbose=FALSE) %>% 
+  RunHarmony(group.by.vars="id", 
+             assay.use="SCT", max.iter.harmony = 20) %>%
+  RunUMAP(reduction="harmony", dims=1:30) %>%
+  FindNeighbors(reduction = "umap",dims = 1:2) %>% FindClusters(resolution = c(0.1))
+sce$new_cluster <- clusters[[1]]
+
+# Dimplot generation
+pdf("dim_split.pdf",height = 6,width = 20)
+DimPlot(sce,split.by = "GSE",group.by = "new_cluster",label=T)
+dev.off()
+
+
+
+
+
+
+
+
