@@ -5,11 +5,9 @@ library(robustbase)
 library(RColorBrewer)
 library(SCEnt)
 library(ggridges)
-# library(Nebulosa)
 
 getwd()
-###
-# 3D可视化 定义功能 基于rgl
+
 setwd("..")
 PlotSphere = function(x, cluster, col, density=FALSE, legend=FALSE) {
   if (missing(col)) {
