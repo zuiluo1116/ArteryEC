@@ -3,14 +3,8 @@ library(monocle3)
 library(densitycut)
 library(robustbase)
 library(RColorBrewer)
-# library(SCEnt)
-# library(ggridges)
-# library(Nebulosa)
 
-
-###
-# 3D可视化 定义功能 基于rgl
-setwd("..")
+# Function
 PlotSphere = function(x, cluster, col, density=FALSE, legend=FALSE) {
   if (missing(col)) {
     col = distinct.col
@@ -69,13 +63,13 @@ PlotSphere = function(x, cluster, col, density=FALSE, legend=FALSE) {
   }
 }
 
-# read obj
+# read object
 sce <- LoadH5Seurat("./obj/sce_afterSCT.h5seurat")
 x = read.delim('./scPhere/re_latent_vmf.tsv',sep=' ', header=FALSE)
 y <- car2sph(x) # 3D <- 2D
 
 
-# rownames
+# Pairing rownames
 rownames(x) <- sce@assays[["RNA"]]@data@Dimnames[[2]]
 rownames(y) <- sce@assays[["RNA"]]@data@Dimnames[[2]]
 y_trans <- y 
@@ -102,7 +96,7 @@ cdsk_3d <- new_cell_data_set(data,cell_metadata = cell_metadata,gene_metadata = 
 cdsk_3d = reduce_dimension(cdsk_3d, max_components = 3)
 cdsk_3d.embed <- cdsk_3d@int_colData$reducedDims$UMAP
 scphere_3d.embed <- x
-scphere_3d.embed <- scphere_3d.embed[rownames(cdsk_3d.embed),1:3] #排序
+scphere_3d.embed <- scphere_3d.embed[rownames(cdsk_3d.embed),1:3] #鎺掑簭
 
 colnames(scphere_3d.embed) <- colnames(cdsk_3d.embed)
 cdsk_3d@int_colData$reducedDims$UMAP <- scphere_3d.embed
@@ -131,31 +125,24 @@ PlotSphere(x, clus_num,scales::hue_pal()(10))
 
 # Viewpoint adjustment
 view_0 <- structure(c(1, 0, 0, 0,
-                          
                       0, 1, 0, 0,
-                          
                       0, 0, 1, 0,
-                          
                       0, 0, 0, 1), .Dim = c(4L, 4L))
-
 rotation_y <- matrix(c(sqrt(2)/2, 0, sqrt(2)/2, 0,
                        0, 1, 0, 0,
                        -sqrt(2)/2, 0, sqrt(2)/2, 0,
                        0, 0, 0, 1), nrow=4, byrow=TRUE)
-
 rotation_x <- matrix(c(1, 0, 0, 0,
                        0, sqrt(2)/2, -sqrt(2)/2, 0,
                        0, sqrt(2)/2, sqrt(2)/2, 0,
                        0, 0, 0, 1), nrow=4, byrow=TRUE)
-
 rotation_z <- matrix(c(sqrt(2)/2, -sqrt(2)/2, 0, 0,
                        sqrt(2)/2, sqrt(2)/2, 0, 0,
                        0, 0, 1, 0,
                        0, 0, 0, 1), nrow=4, byrow=TRUE)
-new_view <- view_start %*% rotation_x
-
 
 par3d(userMatrix = view_0)
+
 view1 <- view_0 %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z %*% rotation_z  %*% rotation_y
 par3d(userMatrix = view1)
 rgl.postscript('./Figures/3dplot.vp1.pdf', fmt = 'pdf')
